@@ -21,7 +21,8 @@ class UpConv(nn.Module):
     def __init__(self, in_channel, out_channel, conv_out_channel):
         super(UpConv, self).__init__()
         self.trans_conv = nn.Sequential(
-            nn.ConvTranspose2d(in_channel, out_channel, kernel_size=(2, 2), stride=(2, 2))
+            nn.ConvTranspose2d(in_channel, out_channel, kernel_size=(2, 2), stride=(2, 2)),
+            nn.ReLU(inplace=True),
         )
         self.double_conv = DoubleConv2d(in_channels=out_channel*2, out_channels=conv_out_channel)
 
@@ -52,8 +53,10 @@ class UNet(nn.Module):
         for up_filter in up_filters:
             self.up.append(UpConv(in_channel=in_filter, out_channel=up_filter, conv_out_channel=up_filter))
             in_filter = up_filter
+        self.out_conv = nn.Conv2d(in_channels=up_filters[-1], out_channels=1, kernel_size=(1, 1))
 
     def forward(self, x):
+        self.outputs = []
         for down in self.down:
             x = down(x)
             self.outputs.append(x)
@@ -61,10 +64,12 @@ class UNet(nn.Module):
         x = self.bend(x)
         for up, inp in zip(self.up, reversed(self.outputs)):
             x = up(x, inp)
+        x = self.out_conv(x)
+
         return x
 
 
 if __name__ == "__main__":
-    t = torch.randn((1, 1, 572, 572))
-    d = UNet(in_filter=1, down_filters=[64, 128, 256, 512], up_filters=[512, 256, 128, 64])
+    t = torch.randn((4, 3, 572, 572))
+    d = UNet(in_filter=3, down_filters=[64, 128, 256, 512], up_filters=[512, 256, 128, 64])
     print(d(t).size())
